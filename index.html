@@ -21,7 +21,7 @@
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.25);
         }
-        #map {
+        #map, #dispen-map {
             height: 200px;
             width: 100%;
             border-radius: 12px;
@@ -143,7 +143,7 @@
             <!-- Tombol Utama Presensi -->
             <div class="flex gap-4">
                 <!-- Presensi Masuk -->
-                <div class="flex-1 glass-card rounded-2xl p-4 text-center flex flex-col items-center justify-between shadow-sm relative overflow-hidden border-t-4 border-emerald-500">
+                <div class="flex-1 glass-card rounded-2xl p-4 text-center flex flex-col items-center justify-between shadow-sm border-t-4 border-emerald-500">
                     <div class="text-center w-full mb-2">
                         <span class="text-[10px] text-slate-400 font-bold uppercase block">Batas Masuk</span>
                         <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">06.15 WIB</span>
@@ -153,14 +153,17 @@
                         <i id="icon-masuk" class="fa-solid fa-bell text-2xl"></i>
                     </button>
                     
-                    <div class="text-center w-full mt-2">
+                    <div class="text-center w-full mt-2 min-h-[48px] flex flex-col justify-start items-center">
                         <p class="text-xs font-bold text-slate-700">Presensi Masuk</p>
                         <p id="time-presensi-masuk" class="text-[11px] text-slate-400 mt-0.5">Belum Presensi</p>
+                        <span id="status-terlambat-masuk-badge" class="hidden text-[10px] text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded-full mt-1">
+                            <i class="fa-solid fa-circle-exclamation"></i> Terlambat
+                        </span>
                     </div>
                 </div>
 
                 <!-- Presensi Pulang -->
-                <div class="flex-1 glass-card rounded-2xl p-4 text-center flex flex-col items-center justify-between shadow-sm relative overflow-hidden border-t-4 border-orange-500">
+                <div class="flex-1 glass-card rounded-2xl p-4 text-center flex flex-col items-center justify-between shadow-sm border-t-4 border-orange-500">
                     <div class="text-center w-full mb-2">
                         <span class="text-[10px] text-slate-400 font-bold uppercase block">Batas Pulang</span>
                         <span class="text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">15.00 WIB</span>
@@ -170,7 +173,7 @@
                         <i id="icon-pulang" class="fa-solid fa-bell text-2xl"></i>
                     </button>
                     
-                    <div class="text-center w-full mt-2">
+                    <div class="text-center w-full mt-2 min-h-[48px] flex flex-col justify-start items-center">
                         <p class="text-xs font-bold text-slate-700">Presensi Pulang</p>
                         <p id="time-presensi-pulang" class="text-[11px] text-slate-400 mt-0.5">Belum Presensi</p>
                     </div>
@@ -227,15 +230,30 @@
                     </div>
                 </div>
 
-                <!-- SUB FORM A: TIDAK HADIR / SAKIT -->
+                <!-- SUB FORM A: TIDAK HADIR / SAKIT / DISPEN -->
                 <form id="form-izin-tidak-hadir" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-4" onsubmit="submitIzinTidakHadir(event)">
                     <div class="space-y-1">
                         <label class="block text-xs font-bold text-slate-500 uppercase">Jenis Izin</label>
-                        <select id="th-jenis" required class="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
+                        <select id="th-jenis" required onchange="handleJenisIzinTidakHadirChange(this)" class="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500 bg-white">
                             <option value="Sakit">Izin Sakit</option>
                             <option value="Izin">Izin Tidak Masuk</option>
+                            <option value="Dispen">Izin Dispen (Dispensasi)</option>
                         </select>
                     </div>
+                    
+                    <!-- LOKASI PETA MAP KHUSUS DISPEN (BARU) -->
+                    <div id="dispen-map-container" class="hidden space-y-3">
+                        <label class="block text-xs font-bold text-slate-500 uppercase">Lokasi Kegiatan / Tugas</label>
+                        <div id="dispen-map" class="border border-slate-200"></div>
+                        <div class="space-y-1">
+                            <label class="block text-[10px] font-bold text-slate-450 uppercase">Alamat Lengkap Kegiatan</label>
+                            <textarea id="dispen-alamat-text" rows="2" class="w-full p-2 text-xs border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Geser penanda di peta atau tulis alamat lengkap kegiatan disini..."></textarea>
+                        </div>
+                        <button type="button" onclick="saveDispenAlamat()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-circle-check"></i> Simpan Lokasi Kegiatan
+                        </button>
+                    </div>
+
                     <div class="grid grid-cols-2 gap-3">
                         <div class="space-y-1">
                             <label class="block text-xs font-bold text-slate-500 uppercase">Mulai Tanggal</label>
@@ -251,7 +269,7 @@
                         <textarea id="th-keterangan" rows="3" required placeholder="Tuliskan alasan detail..." class="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
                     </div>
                     <div class="space-y-1">
-                        <label class="block text-xs font-bold text-slate-500 uppercase">Surat Bukti / Surat Dokter (Maks 50KB)</label>
+                        <label id="th-file-title-label" class="block text-xs font-bold text-slate-500 uppercase">Surat Bukti / Surat Dokter (Maks 50KB)</label>
                         <div class="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center cursor-pointer relative hover:bg-slate-50 transition">
                             <input type="file" id="th-file" accept=".pdf, .doc, .docx, .jpg, .jpeg, .png" required onchange="validateFileSize(this)" class="absolute inset-0 opacity-0 cursor-pointer">
                             <i class="fa-solid fa-cloud-arrow-up text-2xl text-slate-400 mb-1"></i>
@@ -260,7 +278,7 @@
                         </div>
                     </div>
                     <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition text-xs shadow-lg shadow-emerald-600/10">
-                        Kirim Pengajuan Izin Tidak Masuk
+                        Kirim Pengajuan Izin
                     </button>
                 </form>
 
@@ -725,6 +743,11 @@
         let map = null;
         let userMarker = null;
         let currentIzinFilter = 'Semua';
+        
+        // State Map untuk Izin Dispen
+        let dispenMap = null;
+        let dispenMarker = null;
+        let dispenCoords = "";
 
         // DATABASE SIMULASI LOKAL (Digunakan secara aman jika SCRIPT_URL masih berupa tiruan/default)
         const dummyDb = {
@@ -852,13 +875,37 @@
             }, 1000);
         }
 
+        // Helper untuk memeriksa apakah hari ini siswa memiliki dispensasi disetujui
+        function isTodayInRange(rangeStr, todayStr) {
+            if (!rangeStr) return false;
+            if (!rangeStr.includes(" s/d ")) {
+                return rangeStr === todayStr;
+            }
+            const parts = rangeStr.split(" s/d ");
+            if (parts.length !== 2) return false;
+            const start = parts[0];
+            const end = parts[1];
+            return todayStr >= start && todayStr <= end;
+        }
+
+        function hasApprovedDispenToday() {
+            if (!currentSiswa) return false;
+            const todayStr = new Date().toISOString().slice(0, 10);
+            return localDb.izin.some(i => 
+                i.nis === currentSiswa.nis && 
+                i.jenis === 'Dispen' && 
+                i.status === 'Disetujui' && 
+                isTodayInRange(i.tanggal, todayStr)
+            );
+        }
+
         // Dinamis Mengubah Warna Jam & Ketersediaan Bell Pulang
         function updateClockColorAndButtons(now, hh, mm) {
             if (!currentSiswa) return;
             const todayStr = now.toISOString().slice(0, 10);
             const currentMinutes = parseInt(hh) * 60 + parseInt(mm);
 
-            // 1. Warna Jam: Merah jika lewat pukul 06.30, kecuali memiliki izin terlambat masuk yang disetujui
+            // 1. Warna Jam: Merah jika lewat pukul 06.30, kecuali memiliki izin terlambat masuk / dispen aktif
             const limitMasukMinutes = 6 * 60 + 30; // 06:30 WIB
             const hasIzinTerlambat = localDb.izin.some(i => 
                 i.nis === currentSiswa.nis && 
@@ -866,17 +913,18 @@
                 i.status === 'Disetujui' && 
                 i.tanggal === todayStr
             );
+            const hasDispenActive = hasApprovedDispenToday();
 
             const jamElement = document.getElementById('home-jam');
             if (jamElement) {
-                if (currentMinutes > limitMasukMinutes && !hasIzinTerlambat) {
+                if (currentMinutes > limitMasukMinutes && !hasIzinTerlambat && !hasDispenActive) {
                     jamElement.className = "text-2xl font-extrabold tracking-tight mt-0.5 text-rose-500 animate-pulse";
                 } else {
                     jamElement.className = "text-2xl font-extrabold tracking-tight mt-0.5 text-white";
                 }
             }
 
-            // 2. Ketersediaan Lonceng Pulang: Buka otomatis di jam 15.00 atau sesuai jam izin pulang cepat
+            // 2. Ketersediaan Lonceng Pulang: Buka otomatis di jam 15.00 atau jika memiliki dispen / izin pulang cepat
             const limitPulangDefaultMinutes = 15 * 60; // Pukul 15:00 WIB
             const izinPulangCepat = localDb.izin.find(i => 
                 i.nis === currentSiswa.nis && 
@@ -886,7 +934,9 @@
             );
 
             let allowedPulangMinutes = limitPulangDefaultMinutes;
-            if (izinPulangCepat && izinPulangCepat.waktu && izinPulangCepat.waktu !== '-') {
+            if (hasDispenActive) {
+                allowedPulangMinutes = 0; // Dispensasi aktif membuka kunci absen pulang kapan saja
+            } else if (izinPulangCepat && izinPulangCepat.waktu && izinPulangCepat.waktu !== '-') {
                 const [pH, pM] = izinPulangCepat.waktu.split(':').map(Number);
                 if (!isNaN(pH) && !isNaN(pM)) {
                     allowedPulangMinutes = pH * 60 + pM;
@@ -931,7 +981,27 @@
         function calculateDistance() {
             if (!currentLatitude || !currentLongitude) return;
 
-            // Rumus Haversine untuk hitung jarak koordinat bumi
+            // Jika siswa memiliki izin dispen yang sudah disetujui, lock GPS dihilangkan (Bypass Geofencing)
+            const isDispenApproved = hasApprovedDispenToday();
+            const statusText = document.getElementById('geo-status');
+            const distanceMeter = document.getElementById('current-distance');
+
+            if (isDispenApproved) {
+                if (statusText) {
+                    statusText.innerText = "Bebas Absen Di Mana Saja (Dispensasi Aktif)";
+                    statusText.className = "text-xs text-emerald-600 font-bold mt-0.5";
+                }
+                if (distanceMeter) {
+                    distanceMeter.innerText = "Radius Dinonaktifkan";
+                }
+                const divMeter = document.getElementById('distance-meter');
+                if (divMeter) {
+                    divMeter.className = "bg-emerald-50 rounded-xl p-3 flex justify-between items-center text-xs text-emerald-800 border border-emerald-100 font-semibold";
+                }
+                return; // Lewati verifikasi jarak normal sekolah
+            }
+
+            // Rumus Haversine untuk hitung jarak koordinat bumi normal
             const R = 6371e3; 
             const phi1 = currentLatitude * Math.PI / 180;
             const phi2 = SCHOOL_LAT * Math.PI / 180;
@@ -945,10 +1015,7 @@
 
             currentDistance = Math.round(R * c);
 
-            // Update Tampilan UI status jarak
-            const statusText = document.getElementById('geo-status');
-            const distanceMeter = document.getElementById('current-distance');
-
+            // Update Tampilan UI status jarak normal
             if (distanceMeter) distanceMeter.innerText = `${currentDistance} meter`;
 
             if (currentDistance <= ABSENCE_RADIUS_METERS) {
@@ -1095,6 +1162,87 @@
             reader.readAsDataURL(file);
         }
 
+        // INTI LOGIKA BARU: INTERAKTIF MENANGANI EVENT PERUBAHAN JENIS IZIN TIDAK HADIR
+        function handleJenisIzinTidakHadirChange(select) {
+            const mapContainer = document.getElementById('dispen-map-container');
+            const fileLabel = document.getElementById('th-file-title-label');
+            const thFile = document.getElementById('th-file');
+            
+            if (select.value === 'Dispen') {
+                // Munculkan Map Lokasi Tugas
+                mapContainer.classList.remove('hidden');
+                if (fileLabel) fileLabel.innerText = "Surat Tugas (Maks 50KB)";
+                if (thFile) thFile.required = true;
+                
+                // Inisialisasi Peta Dispen
+                setTimeout(() => {
+                    initDispenMap();
+                }, 100);
+            } else {
+                // Sembunyikan Map Lokasi Tugas
+                mapContainer.classList.add('hidden');
+                if (fileLabel) fileLabel.innerText = "Surat Bukti / Surat Dokter (Maks 50KB)";
+            }
+        }
+
+        // INTI LOGIKA BARU: MAP UNTUK PENGAJUAN DISPEN
+        function initDispenMap() {
+            if (dispenMap !== null) {
+                // Leaflet Map invalidate size agar render peta terhitung sempurna setelah unhide
+                dispenMap.invalidateSize();
+                return;
+            }
+
+            // Tentukan koordinat awal (sekolah SMAN 1 Parung atau GPS pengguna)
+            let startLat = SCHOOL_LAT;
+            let startLng = SCHOOL_LNG;
+            if (currentLatitude && currentLongitude) {
+                startLat = currentLatitude;
+                startLng = currentLongitude;
+            }
+
+            dispenMap = L.map('dispen-map').setView([startLat, startLng], 14);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(dispenMap);
+
+            dispenMarker = L.marker([startLat, startLng], { draggable: true }).addTo(dispenMap);
+            dispenCoords = `${startLat.toFixed(6)},${startLng.toFixed(6)}`;
+            updateDispenAddressFromCoords(startLat, startLng);
+
+            // Listener penanda peta diseret
+            dispenMarker.on('dragend', function (e) {
+                const pos = dispenMarker.getLatLng();
+                dispenCoords = `${pos.lat.toFixed(6)},${pos.lng.toFixed(6)}`;
+                updateDispenAddressFromCoords(pos.lat, pos.lng);
+            });
+        }
+
+        // AMBIL ALAMAT BERDASARKAN KOORDINAT LOKASI DISPEN
+        function updateDispenAddressFromCoords(lat, lng) {
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.display_name) {
+                        document.getElementById('dispen-alamat-text').value = data.display_name;
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('dispen-alamat-text').value = `Koordinat: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                });
+        }
+
+        // FUNGSI SIMPAN ALAMAT DISPEN MANUAL
+        function saveDispenAlamat() {
+            const alamat = document.getElementById('dispen-alamat-text').value.trim();
+            if (!alamat) {
+                showToast("Lengkapi atau geser pin peta untuk mendeteksi alamat!");
+                return;
+            }
+            showToast("Alamat lokasi kegiatan dispen berhasil disimpan!");
+        }
+
         function doPostLoginActions() {
             // Sembunyikan Login, Tampilkan Dashboard & Bottom Nav
             document.getElementById('view-login').classList.add('hidden');
@@ -1186,7 +1334,7 @@
             }
         }
 
-        // TRIGGER PRESENSI (ABSENSI LOGIC - Pengamanan Jam Buka Lonceng Pulang Cepat)
+        // TRIGGER PRESENSI (ABSENSI LOGIC - Pengamanan Jam Buka Lonceng Pulang Cepat & Bypass GPS Dispen)
         let activeAbsenceType = ''; 
 
         function triggerPresensi(type) {
@@ -1195,7 +1343,10 @@
                 return;
             }
 
-            if (currentDistance > ABSENCE_RADIUS_METERS) {
+            // Integrasi Bypass GPS: Jika dispensasi (dispen) disetujui, lewati pengecekan radius 100 meter sekolah
+            const isDispenApproved = hasApprovedDispenToday();
+
+            if (!isDispenApproved && currentDistance > ABSENCE_RADIUS_METERS) {
                 showToast("Anda berada di luar radius area SMAN 1 Parung (100 meter)!");
                 return;
             }
@@ -1213,29 +1364,32 @@
                     return;
                 }
 
-                // Cek pengamanan jam buka presensi pulang (default 15.00 atau jam izin pulang cepat)
+                // Cek pengamanan jam buka presensi pulang (default 15.00 atau jam izin pulang cepat/dispen aktif)
                 const now = new Date();
                 const currentMinutes = now.getHours() * 60 + now.getMinutes();
                 const limitPulangDefaultMinutes = 15 * 60; // 15:00
 
-                const izinPulangCepat = localDb.izin.find(i => 
-                    i.nis === currentSiswa.nis && 
-                    i.jenis === 'Izin Pulang Cepat' && 
-                    i.status === 'Disetujui' && 
-                    i.tanggal === hariIni
-                );
-
                 let allowedPulangMinutes = limitPulangDefaultMinutes;
-                if (izinPulangCepat && izinPulangCepat.waktu && izinPulangCepat.waktu !== '-') {
-                    const [pH, pM] = izinPulangCepat.waktu.split(':').map(Number);
-                    if (!isNaN(pH) && !isNaN(pM)) {
-                        allowedPulangMinutes = pH * 60 + pM;
+                if (isDispenApproved) {
+                    allowedPulangMinutes = 0; // dispensasi aktif membebaskan jam kepulangan
+                } else {
+                    const izinPulangCepat = localDb.izin.find(i => 
+                        i.nis === currentSiswa.nis && 
+                        i.jenis === 'Izin Pulang Cepat' && 
+                        i.status === 'Disetujui' && 
+                        i.tanggal === hariIni
+                    );
+
+                    if (izinPulangCepat && izinPulangCepat.waktu && izinPulangCepat.waktu !== '-') {
+                        const [pH, pM] = izinPulangCepat.waktu.split(':').map(Number);
+                        if (!isNaN(pH) && !isNaN(pM)) {
+                            allowedPulangMinutes = pH * 60 + pM;
+                        }
                     }
                 }
 
                 if (currentMinutes < allowedPulangMinutes) {
-                    const jamTeks = izinPulangCepat ? izinPulangCepat.waktu : '15:00';
-                    showToast(`Presensi pulang belum dibuka! (Buka jam ${jamTeks} WIB)`);
+                    showToast("Presensi pulang belum dibuka untuk hari ini!");
                     return;
                 }
             }
@@ -1313,6 +1467,9 @@
                     break;
                 case 'izin_pulang_cepat':
                     pesan = `*PEMBERITAHUAN IZIN PULANG CEPAT - SMAN 1 PARUNG*\n\nYth. Orang Tua/Wali,\nPengajuan izin meninggalkan sekolah sebelum waktu KBM usai untuk putra/putri Anda:\n\n Nama: *${currentSiswa.nama}*\n Kelas: ${currentSiswa.kelas}\n\nTelah *Berhasil Diajukan* pada:\n Tanggal: ${detail.tanggal}\n Jam Rencana Pulang: ${detail.waktu} WIB\n Alasan: ${detail.keterangan}\n Status: Menunggu Persetujuan Atasan\n\n_SiGesit SMAN 1 Parung_`;
+                    break;
+                case 'izin_dispen':
+                    pesan = `*PEMBERITAHUAN PENGAJUAN DISPENSASI (DISPEN) - SMAN 1 PARUNG*\n\nYth. Orang Tua/Wali,\nPengajuan Izin Dispensasi Kegiatan untuk putra/putri Anda:\n\n Nama: *${currentSiswa.nama}*\n Kelas: ${currentSiswa.kelas}\n\nTelah *Berhasil Diajukan* pada:\n Periode: ${detail.tanggal}\n Keterangan/Tugas: ${detail.keterangan}\n Status: Menunggu Persetujuan Atasan\n\nSiswa akan dibebaskan dari pembatasan radius absen sekolah (Geofencing) selama dispen disetujui.\n_SiGesit SMAN 1 Parung_`;
                     break;
                 case 'poin_pelanggaran':
                     pesan = `*NOTIFIKASI CATATAN PELANGGARAN SISWA - SMAN 1 PARUNG*\n\nYth. Orang Tua/Wali,\nDiberitahukan bahwa putra/putri Anda:\n\n Nama: *${currentSiswa.nama}*\n Kelas: ${currentSiswa.kelas}\n\nTelah tercatat melakukan tindakan pelanggaran disiplin:\n Hari/Tgl: ${tanggalSekarang}\n Deskripsi: *${detail.deskripsi}*\n Pengurangan: *-${detail.poin} Poin*\n Saldo Akhir Poin: *${detail.saldo_akhir}*\n\nMohon untuk dapat memberikan bimbingan dan arahan lebih lanjut di rumah.\n_SiGesit SMAN 1 Parung_`;
@@ -1393,16 +1550,35 @@
             const btnMasuk = document.getElementById('btn-presensi-masuk');
             const iconMasuk = document.getElementById('icon-masuk');
             const textMasuk = document.getElementById('time-presensi-masuk');
+            const bageTerlambatMasuk = document.getElementById('status-terlambat-masuk-badge');
             
             if (btnMasuk && iconMasuk && textMasuk) {
                 if (status.masuk) {
-                    btnMasuk.className = "w-16 h-16 bg-slate-100 border-2 border-emerald-500 text-emerald-600 rounded-full flex items-center justify-center my-2";
-                    iconMasuk.className = "fa-solid fa-circle-check text-2xl";
-                    textMasuk.innerText = `Done - ${status.masuk.jam} WIB`;
+                    btnMasuk.className = "w-16 h-16 bg-slate-100 border-2 border-emerald-500 text-emerald-600 rounded-full flex items-center justify-center my-2 disabled:opacity-100";
+                    btnMasuk.disabled = true; // Kunci total agar siswa tidak bisa menekan tombol lagi
+                    iconMasuk.className = "fa-solid fa-circle-check text-2xl text-emerald-500";
+                    
+                    // Mengecek apakah jam presensi masuk melewati batas 06:15 WIB
+                    const [h, m] = status.masuk.jam.split(':').map(Number);
+                    const absenMinutes = h * 60 + m;
+                    const limitMinutes = 6 * 60 + 15; // Batas jam 06:15
+                    
+                    if (absenMinutes > limitMinutes) {
+                        textMasuk.className = "text-[11px] text-rose-600 font-bold mt-0.5";
+                        textMasuk.innerText = `Done - ${status.masuk.jam} WIB`;
+                        if (bageTerlambatMasuk) bageTerlambatMasuk.classList.remove('hidden'); // Munculkan label terlambat merah
+                    } else {
+                        textMasuk.className = "text-[11px] text-emerald-600 font-bold mt-0.5";
+                        textMasuk.innerText = `Done - ${status.masuk.jam} WIB`;
+                        if (bageTerlambatMasuk) bageTerlambatMasuk.classList.add('hidden');
+                    }
                 } else {
                     btnMasuk.className = "w-16 h-16 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30 transition my-2";
+                    btnMasuk.disabled = false;
                     iconMasuk.className = "fa-solid fa-bell text-2xl";
+                    textMasuk.className = "text-[11px] text-slate-400 mt-0.5";
                     textMasuk.innerText = "Belum Presensi";
+                    if (bageTerlambatMasuk) bageTerlambatMasuk.classList.add('hidden');
                 }
             }
 
@@ -1412,12 +1588,47 @@
             
             if (btnPulang && iconPulang && textPulang) {
                 if (status.pulang) {
-                    btnPulang.className = "w-16 h-16 bg-slate-100 border-2 border-orange-500 text-orange-600 rounded-full flex items-center justify-center my-2";
-                    iconPulang.className = "fa-solid fa-circle-check text-2xl";
+                    btnPulang.className = "w-16 h-16 bg-slate-100 border-2 border-orange-500 text-orange-600 rounded-full flex items-center justify-center my-2 disabled:opacity-100";
+                    btnPulang.disabled = true; // Kunci total agar siswa tidak bisa menekan tombol lagi
+                    iconPulang.className = "fa-solid fa-circle-check text-2xl text-orange-500";
+                    textPulang.className = "text-[11px] text-emerald-600 font-bold mt-0.5";
                     textPulang.innerText = `Done - ${status.pulang.jam} WIB`;
                 } else {
-                    btnPulang.className = "w-16 h-16 bg-orange-500 hover:bg-orange-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-orange-500/30 transition my-2";
+                    // Cek status buka/tutup tombol berdasarkan jam real-time atau dispensasi
+                    const now = new Date();
+                    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                    const limitPulangDefaultMinutes = 15 * 60; // 15:00
+                    const hasDispenActive = hasApprovedDispenToday();
+
+                    let allowedPulangMinutes = limitPulangDefaultMinutes;
+                    if (hasDispenActive) {
+                        allowedPulangMinutes = 0; // Bebaskan kepulangan kapan saja jika dispen disetujui
+                    } else {
+                        const izinPulangCepat = localDb.izin.find(i => 
+                            i.nis === currentSiswa.nis && 
+                            i.jenis === 'Izin Pulang Cepat' && 
+                            i.status === 'Disetujui' && 
+                            i.tanggal === hariIni
+                        );
+
+                        if (izinPulangCepat && izinPulangCepat.waktu && izinPulangCepat.waktu !== '-') {
+                            const [pH, pM] = izinPulangCepat.waktu.split(':').map(Number);
+                            if (!isNaN(pH) && !isNaN(pM)) {
+                                allowedPulangMinutes = pH * 60 + pM;
+                            }
+                        }
+                    }
+
+                    if (currentMinutes >= allowedPulangMinutes) {
+                        btnPulang.className = "w-16 h-16 bg-orange-500 hover:bg-orange-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-orange-500/30 transition my-2";
+                        btnPulang.disabled = false;
+                    } else {
+                        btnPulang.className = "w-16 h-16 bg-slate-200 text-slate-400 rounded-full flex items-center justify-center my-2 cursor-not-allowed";
+                        btnPulang.disabled = true;
+                    }
+                    
                     iconPulang.className = "fa-solid fa-bell text-2xl";
+                    textPulang.className = "text-[11px] text-slate-400 mt-0.5";
                     textPulang.innerText = "Belum Presensi";
                 }
             }
@@ -1503,9 +1714,16 @@
                 created_at: new Date().toISOString()
             };
 
-            kirimIzinKeServer(payload, jenis === 'Sakit' ? 'izin_sakit' : 'izin_tidak-masuk');
+            // Tambahkan koordinat peta dan alamat ke payload jika memilih Dispen
+            if (jenis === 'Dispen') {
+                payload.dispen_alamat = document.getElementById('dispen-alamat-text').value.trim();
+                payload.dispen_koordinat = dispenCoords;
+            }
+
+            kirimIzinKeServer(payload, jenis === 'Sakit' ? 'izin_sakit' : (jenis === 'Dispen' ? 'izin_dispen' : 'izin_tidak-masuk'));
             document.getElementById('form-izin-tidak-hadir').reset();
             document.getElementById('th-file-label').innerText = "Pilih file PDF, Word, JPG, atau PNG";
+            document.getElementById('dispen-map-container').classList.add('hidden');
         }
 
         // SUBMIT FORM PENGAJUAN IZIN KONDISIONAL
@@ -1719,27 +1937,26 @@
 
             logContainer.innerHTML = sortedDates.map(tanggal => {
                 const row = groupedLog[tanggal];
-                // Formatter tanggal lokal yang lebih ramah dibaca
                 const dateObj = new Date(tanggal);
                 const formatTglLokal = !isNaN(dateObj) ? dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : tanggal;
 
                 // LOGIKA PEWARNAAN DINAMIS:
-                // 1. IN: Berwarna merah jika absen masuk lewat dari jam 06.30, hijau jika tidak terlambat
+                // 1. IN: Berwarna merah jika absen masuk lewat dari jam 06.15, hijau jika tidak terlambat
                 let masukClass = "bg-slate-100 text-slate-400";
                 if (row.masuk !== '--:--') {
                     const [h, m] = row.masuk.split(':').map(Number);
-                    const limitMasukMax = 6 * 60 + 30; // Batas jam 06.30
+                    const limitMasukMax = 6 * 60 + 15; // Batas jam 06.15
                     if (h * 60 + m > limitMasukMax) {
-                        masukClass = "bg-rose-50 text-rose-750 border border-rose-150 font-bold"; // Merah jika terlambat lewat 06.30
+                        masukClass = "bg-rose-50 text-rose-700 border border-rose-150 font-bold"; // Merah jika terlambat lewat 06.15
                     } else {
-                        masukClass = "bg-emerald-50 text-emerald-700 border border-emerald-100"; // Hijau jika tepat waktu / sebelum 06.30
+                        masukClass = "bg-emerald-50 text-emerald-700 border border-emerald-100"; // Hijau jika tepat waktu
                     }
                 }
 
                 // 2. OUT: Berwarna hijau jika presensi pulang sudah terisi
                 let pulangClass = "bg-slate-100 text-slate-400";
                 if (row.pulang !== '--:--') {
-                    pulangClass = "bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold"; // Hijau stabil
+                    pulangClass = "bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold"; 
                 }
 
                 return `
@@ -1915,6 +2132,7 @@
         function updateAddressFromCoordinates(lat, lng) {
             currentSiswa.alamat_koordinat = `${lat.toFixed(6)},${lng.toFixed(6)}`;
             
+            fetch// reverse geocoding
             fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
                 .then(res => res.json())
                 .then(data => {
