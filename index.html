@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
         }
@@ -52,9 +52,12 @@
         <div id="view-login" class="flex-1 flex flex-col justify-between p-6 bg-gradient-to-b from-emerald-50 to-white relative">
             
             <div class="flex-1 flex flex-col justify-center items-center">
-                <!-- Logo Sekolah -->
+                <!-- Logo Sekolah Berbentuk PNG / JPG dengan Fallback -->
                 <div class="w-28 h-28 bg-white rounded-full p-2 shadow-md flex items-center justify-center mb-4">
-                    <img src="https://images.unsplash.com/photo-1592280771190-3e2e4d571952?w=150&auto=format&fit=crop" alt="Logo SMAN 1 Parung" class="w-full h-full object-cover rounded-full">
+                    <img src="https://images.unsplash.com/photo-1592280771190-3e2e4d571952?w=150&auto=format&fit=crop" 
+                         onerror="this.onerror=null; this.src='https://placehold.co/150x150?text=Logo+SMAN1';" 
+                         alt="Logo SMAN 1 Parung" 
+                         class="w-full h-full object-cover rounded-full">
                 </div>
                 <h2 class="text-2xl font-black text-slate-800 text-center mb-1">SIGESIT</h2>
                 <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-8">SMAN 1 Parung</p>
@@ -578,8 +581,18 @@
         <!-- 6. VIEW PROFIL -->
         <div id="view-profil" class="hidden flex-1 overflow-y-auto p-4 space-y-4 pb-24">
             <!-- Profil Head -->
-            <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm text-center flex flex-col items-center">
-                <img id="profil-foto" src="" alt="Foto Profil" class="w-24 h-24 rounded-full object-cover border-4 border-slate-100 shadow-inner mb-3" onerror="this.src='https://placehold.co/150x150?text=Siswa'">
+            <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm text-center flex flex-col items-center relative">
+                
+                <!-- Container Foto dengan Upload Manual Terintegrasi -->
+                <div class="relative group cursor-pointer">
+                    <img id="profil-foto" src="" alt="Foto Profil" class="w-24 h-24 rounded-full object-cover border-4 border-slate-100 shadow-inner mb-3" onerror="this.src='https://placehold.co/150x150?text=Siswa'">
+                    <!-- Tombol Upload Camera Icon overlay -->
+                    <label for="upload-foto-siswa" class="absolute bottom-3 right-0 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full w-8 h-8 flex items-center justify-center border-2 border-white cursor-pointer shadow-md transition transform active:scale-95">
+                        <i class="fa-solid fa-camera text-xs"></i>
+                    </label>
+                    <input type="file" id="upload-foto-siswa" accept=".png, .jpg, .jpeg" onchange="uploadFotoSiswa(this)" class="hidden">
+                </div>
+
                 <h4 id="profil-nama" class="font-bold text-base text-slate-800 leading-tight">Nama Siswa</h4>
                 <p id="profil-nisn" class="text-xs text-slate-400 font-medium">NISN: Loading...</p>
                 <span class="mt-2 text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full font-bold">Siswa SMAN 1 Parung</span>
@@ -1022,6 +1035,66 @@
             }
         }
 
+        // UNGGAH FOTO PROFIL SISWA SECARA MANUAL
+        function uploadFotoSiswa(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            // Validasi batasan ukuran file: Maksimal 50KB demi hemat penyimpanan di Spreadsheet
+            if (file.size > 50 * 1024) {
+                showToast("Ukuran foto melebihi batasan 50KB! Silakan kompres foto Anda.");
+                input.value = "";
+                return;
+            }
+
+            showToast("Memproses foto...");
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64String = e.target.result;
+                
+                // Perbarui visualisasi instan di sisi klien
+                const profileImg = document.getElementById('profil-foto');
+                const homeImg = document.getElementById('home-foto');
+                if (profileImg) profileImg.src = base64String;
+                if (homeImg) homeImg.src = base64String;
+
+                // Perbarui status siswa aktif saat ini
+                currentSiswa.foto = base64String;
+                localStorage.setItem('sigesit_active_user', JSON.stringify(currentSiswa));
+
+                // Kirim langsung ke Google Sheets secara realtime jika terintegrasi
+                if (isMockUrl()) {
+                    showToast("Foto berhasil diperbarui (Simulasi Lokal)!");
+                    return;
+                }
+
+                if (scriptUrl) {
+                    showToast("Menyimpan foto ke Google Sheets...");
+                    fetch(`${scriptUrl}?action=updateFoto`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            nis: currentSiswa.nis,
+                            foto: base64String
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            showToast("Foto profil berhasil diperbarui di Google Sheets!");
+                        } else {
+                            showToast("Gagal menyimpan foto ke server Google.");
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Eror upload foto:", err);
+                        showToast("Foto disimpan sementara di sesi perangkat ini.");
+                    });
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
         function doPostLoginActions() {
             // Sembunyikan Login, Tampilkan Dashboard & Bottom Nav
             document.getElementById('view-login').classList.add('hidden');
@@ -1048,6 +1121,10 @@
             if (currentSiswa.foto) {
                 document.getElementById('home-foto').src = currentSiswa.foto;
                 document.getElementById('profil-foto').src = currentSiswa.foto;
+            } else {
+                // Fallback default
+                document.getElementById('home-foto').src = 'https://placehold.co/150x150?text=Siswa';
+                document.getElementById('profil-foto').src = 'https://placehold.co/150x150?text=Siswa';
             }
 
             document.getElementById('profil-nama').innerText = currentSiswa.nama;
@@ -1565,7 +1642,7 @@
             }).join('');
         }
 
-        // REKAPITULASI ABSENSI (Grouping IN & OUT Sebaris per Tanggal)
+        // REKAPITULASI ABSENSI (Grouping IN & OUT Sebaris per Tanggal + Pewarnaan Dinamis)
         function renderRekapPresensi() {
             const thn = document.getElementById('rekap-tahun').value;
             const bln = document.getElementById('rekap-bulan').value;
@@ -1646,16 +1723,35 @@
                 const dateObj = new Date(tanggal);
                 const formatTglLokal = !isNaN(dateObj) ? dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : tanggal;
 
+                // LOGIKA PEWARNAAN DINAMIS:
+                // 1. IN: Berwarna merah jika absen masuk lewat dari jam 06.30, hijau jika tidak terlambat
+                let masukClass = "bg-slate-100 text-slate-400";
+                if (row.masuk !== '--:--') {
+                    const [h, m] = row.masuk.split(':').map(Number);
+                    const limitMasukMax = 6 * 60 + 30; // Batas jam 06.30
+                    if (h * 60 + m > limitMasukMax) {
+                        masukClass = "bg-rose-50 text-rose-750 border border-rose-150 font-bold"; // Merah jika terlambat lewat 06.30
+                    } else {
+                        masukClass = "bg-emerald-50 text-emerald-700 border border-emerald-100"; // Hijau jika tepat waktu / sebelum 06.30
+                    }
+                }
+
+                // 2. OUT: Berwarna hijau jika presensi pulang sudah terisi
+                let pulangClass = "bg-slate-100 text-slate-400";
+                if (row.pulang !== '--:--') {
+                    pulangClass = "bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold"; // Hijau stabil
+                }
+
                 return `
                     <div class="px-4 py-3.5 flex justify-between items-center text-xs border-b border-slate-100 last:border-0 bg-white">
                         <div class="flex flex-col">
                             <span class="font-bold text-slate-700">${formatTglLokal}</span>
                         </div>
                         <div class="flex items-center gap-2">
-                            <span class="px-2 py-1 font-semibold rounded text-[10.5px] ${row.masuk !== '--:--' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-100 text-slate-450'}">
+                            <span class="px-2 py-1 font-semibold rounded text-[10.5px] ${masukClass}">
                                 <i class="fa-solid fa-right-to-bracket mr-1"></i> IN: ${row.masuk}
                             </span>
-                            <span class="px-2 py-1 font-semibold rounded text-[10.5px] ${row.pulang !== '--:--' ? 'bg-orange-50 text-orange-700 border border-orange-100' : 'bg-slate-100 text-slate-450'}">
+                            <span class="px-2 py-1 font-semibold rounded text-[10.5px] ${pulangClass}">
                                 <i class="fa-solid fa-right-from-bracket mr-1"></i> OUT: ${row.pulang}
                             </span>
                         </div>
