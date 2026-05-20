@@ -61,6 +61,12 @@
 
                 <!-- Login Form -->
                 <div class="w-full space-y-4">
+                    <!-- Petunjuk Uji Coba Offline Kondisional -->
+                    <div id="mock-info-banner" class="hidden bg-amber-50 rounded-xl p-3 border border-amber-200 text-[11px] text-amber-800 leading-relaxed">
+                        <i class="fa-solid fa-circle-info mr-1 text-amber-600"></i> <b>Mode Simulasi Aktif (URL Belum Diganti):</b><br>
+                        Gunakan NIS: <span class="font-mono font-bold bg-amber-100 px-1 py-0.5 rounded">12345</span> dan Password: <span class="font-mono font-bold bg-amber-100 px-1 py-0.5 rounded">0011223344</span> untuk mencoba aplikasi.
+                    </div>
+
                     <div>
                         <label class="block text-xs font-bold text-slate-600 mb-1">Nomor Induk Siswa (NIS)</label>
                         <div class="relative">
@@ -87,7 +93,7 @@
             </div>
             
             <div class="text-center text-[11px] text-slate-400">
-                Status Integrasi: <span id="status-integrasi-label" class="font-bold text-emerald-600">Terhubung Google Sheets (Realtime)</span>
+                Status Integrasi: <span id="status-integrasi-label" class="font-bold">Mengecek konektivitas...</span>
             </div>
         </div>
 
@@ -453,7 +459,7 @@
                 </div>
             </div>
 
-            <!-- Tabel Log Aktivitas Bulanan -->
+            <!-- Tabel Log Aktivitas Bulanan (Sederhana Sebaris IN & OUT) -->
             <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                 <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
                     <h5 class="text-xs font-bold text-slate-600">Detail Log Presensi</h5>
@@ -567,7 +573,7 @@
                 <div class="px-4 py-3 bg-slate-50 border-b border-slate-100">
                     <h5 class="text-xs font-bold text-slate-600">Riwayat Catatan Prestasi & Pelanggaran</h5>
                 </div>
-                <div class="divide-y divide-slate-100" id="poin-logs-container">
+                <div class="divide-y divide-slate-100 max-h-80 overflow-y-auto" id="poin-logs-container">
                     <div class="p-6 text-center text-xs text-slate-400">
                         <i class="fa-solid fa-circle-check text-emerald-500 text-2xl mb-2 block"></i> Siswa bersih dari catatan pelanggaran.
                     </div>
@@ -814,7 +820,7 @@
             }
         }
 
-        // Realtime Clock
+        // Realtime Clock (Menangani Perubahan Warna Jam dan Tombol Pulang secara Dinamis)
         function startClock() {
             setInterval(() => {
                 const now = new Date();
@@ -828,9 +834,71 @@
                 const hari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
                 const bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
                 
-                document.getElementById('home-tanggal').innerText = `${hari[now.getDay()]}, ${d} ${bulan[now.getMonth()]} ${y}`;
-                document.getElementById('home-jam').innerText = `${hh}:${mm}:${ss}`;
+                const homeTanggalEl = document.getElementById('home-tanggal');
+                const homeJamEl = document.getElementById('home-jam');
+                
+                if (homeTanggalEl) homeTanggalEl.innerText = `${hari[now.getDay()]}, ${d} ${bulan[now.getMonth()]} ${y}`;
+                if (homeJamEl) homeJamEl.innerText = `${hh}:${mm}:${ss}`;
+
+                // Pemicu pengecekan warna jam dan izin keterlambatan / pulang cepat otomatis
+                updateClockColorAndButtons(now, hh, mm);
             }, 1000);
+        }
+
+        // Dinamis Mengubah Warna Jam & Ketersediaan Bell Pulang
+        function updateClockColorAndButtons(now, hh, mm) {
+            if (!currentSiswa) return;
+            const todayStr = now.toISOString().slice(0, 10);
+            const currentMinutes = parseInt(hh) * 60 + parseInt(mm);
+
+            // 1. Warna Jam: Merah jika lewat pukul 06.30, kecuali memiliki izin terlambat masuk yang disetujui
+            const limitMasukMinutes = 6 * 60 + 30; // 06:30 WIB
+            const hasIzinTerlambat = localDb.izin.some(i => 
+                i.nis === currentSiswa.nis && 
+                i.jenis === 'Izin Terlambat Masuk' && 
+                i.status === 'Disetujui' && 
+                i.tanggal === todayStr
+            );
+
+            const jamElement = document.getElementById('home-jam');
+            if (jamElement) {
+                if (currentMinutes > limitMasukMinutes && !hasIzinTerlambat) {
+                    jamElement.className = "text-2xl font-extrabold tracking-tight mt-0.5 text-rose-500 animate-pulse";
+                } else {
+                    jamElement.className = "text-2xl font-extrabold tracking-tight mt-0.5 text-white";
+                }
+            }
+
+            // 2. Ketersediaan Lonceng Pulang: Buka otomatis di jam 15.00 atau sesuai jam izin pulang cepat
+            const limitPulangDefaultMinutes = 15 * 60; // Pukul 15:00 WIB
+            const izinPulangCepat = localDb.izin.find(i => 
+                i.nis === currentSiswa.nis && 
+                i.jenis === 'Izin Pulang Cepat' && 
+                i.status === 'Disetujui' && 
+                i.tanggal === todayStr
+            );
+
+            let allowedPulangMinutes = limitPulangDefaultMinutes;
+            if (izinPulangCepat && izinPulangCepat.waktu && izinPulangCepat.waktu !== '-') {
+                const [pH, pM] = izinPulangCepat.waktu.split(':').map(Number);
+                if (!isNaN(pH) && !isNaN(pM)) {
+                    allowedPulangMinutes = pH * 60 + pM;
+                }
+            }
+
+            const btnPulang = document.getElementById('btn-presensi-pulang');
+            const statusAbsen = checkHariIniAbsenStatus(todayStr);
+
+            if (btnPulang) {
+                if (statusAbsen.pulang) {
+                    // Sudah absen pulang
+                    btnPulang.disabled = true;
+                } else if (currentMinutes >= allowedPulangMinutes) {
+                    btnPulang.disabled = false;
+                } else {
+                    btnPulang.disabled = true;
+                }
+            }
         }
 
         // GEOLOCATION TRACKING (REALTIME)
@@ -874,16 +942,22 @@
             const statusText = document.getElementById('geo-status');
             const distanceMeter = document.getElementById('current-distance');
 
-            distanceMeter.innerText = `${currentDistance} meter`;
+            if (distanceMeter) distanceMeter.innerText = `${currentDistance} meter`;
 
             if (currentDistance <= ABSENCE_RADIUS_METERS) {
-                statusText.innerText = "Lokasi terverifikasi di area SMAN 1 Parung (Siap Absen)";
-                statusText.className = "text-xs text-emerald-600 font-semibold mt-0.5";
-                document.getElementById('distance-meter').className = "bg-emerald-50 rounded-xl p-3 flex justify-between items-center text-xs text-emerald-800 border border-emerald-100";
+                if (statusText) {
+                    statusText.innerText = "Lokasi terverifikasi di area SMAN 1 Parung (Siap Absen)";
+                    statusText.className = "text-xs text-emerald-600 font-semibold mt-0.5";
+                }
+                const divMeter = document.getElementById('distance-meter');
+                if (divMeter) divMeter.className = "bg-emerald-50 rounded-xl p-3 flex justify-between items-center text-xs text-emerald-800 border border-emerald-100";
             } else {
-                statusText.innerText = `Berada di luar jangkauan area sekolah (> ${ABSENCE_RADIUS_METERS}m)`;
-                statusText.className = "text-xs text-rose-500 font-semibold mt-0.5";
-                document.getElementById('distance-meter').className = "bg-rose-50 rounded-xl p-3 flex justify-between items-center text-xs text-rose-800 border border-rose-100";
+                if (statusText) {
+                    statusText.innerText = `Berada di luar jangkauan area sekolah (> ${ABSENCE_RADIUS_METERS}m)`;
+                    statusText.className = "text-xs text-rose-500 font-semibold mt-0.5";
+                }
+                const divMeter = document.getElementById('distance-meter');
+                if (divMeter) divMeter.className = "bg-rose-50 rounded-xl p-3 flex justify-between items-center text-xs text-rose-800 border border-rose-100";
             }
         }
 
@@ -937,7 +1011,14 @@
                 
                 // Salin data tiruan ke state lokal aktif
                 localDb.presensi = [...dummyDb.presensi];
-                localDb.izin = [...dummyDb.izin];
+                
+                // Tambahkan simulasi dispensasi izin hari ini untuk pengujian fungsionalitas
+                const todayStr = new Date().toISOString().slice(0, 10);
+                localDb.izin = [
+                    ...dummyDb.izin,
+                    { nis: "12345", nama: "Dian Wahyudi (Simulasi)", kategori: "Kondisional", jenis: "Izin Terlambat Masuk", tanggal: todayStr, waktu: "08:00", keterangan: "Ada urusan keluarga darurat", status: "Disetujui", created_at: new Date().toISOString() },
+                    { nis: "12345", nama: "Dian Wahyudi (Simulasi)", kategori: "Kondisional", jenis: "Izin Pulang Cepat", tanggal: todayStr, waktu: "13:30", keterangan: "Ada janji temu dokter spesialis", status: "Disetujui", created_at: new Date().toISOString() }
+                ];
                 localDb.poin = [...dummyDb.poin];
 
                 doPostLoginActions();
@@ -1023,7 +1104,7 @@
             }
         }
 
-        // TRIGGER PRESENSI (ABSENSI LOGIC)
+        // TRIGGER PRESENSI (ABSENSI LOGIC - Pengamanan Jam Buka Lonceng Pulang Cepat)
         let activeAbsenceType = ''; 
 
         function triggerPresensi(type) {
@@ -1044,9 +1125,37 @@
                 showToast("Anda sudah melakukan presensi masuk hari ini.");
                 return;
             }
-            if (type === 'pulang' && statusAbsen.pulang) {
-                showToast("Anda sudah melakukan presensi pulang hari ini.");
-                return;
+            if (type === 'pulang') {
+                if (statusAbsen.pulang) {
+                    showToast("Anda sudah melakukan presensi pulang hari ini.");
+                    return;
+                }
+
+                // Cek pengamanan jam buka presensi pulang (default 15.00 atau jam izin pulang cepat)
+                const now = new Date();
+                const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                const limitPulangDefaultMinutes = 15 * 60; // 15:00
+
+                const izinPulangCepat = localDb.izin.find(i => 
+                    i.nis === currentSiswa.nis && 
+                    i.jenis === 'Izin Pulang Cepat' && 
+                    i.status === 'Disetujui' && 
+                    i.tanggal === hariIni
+                );
+
+                let allowedPulangMinutes = limitPulangDefaultMinutes;
+                if (izinPulangCepat && izinPulangCepat.waktu && izinPulangCepat.waktu !== '-') {
+                    const [pH, pM] = izinPulangCepat.waktu.split(':').map(Number);
+                    if (!isNaN(pH) && !isNaN(pM)) {
+                        allowedPulangMinutes = pH * 60 + pM;
+                    }
+                }
+
+                if (currentMinutes < allowedPulangMinutes) {
+                    const jamTeks = izinPulangCepat ? izinPulangCepat.waktu : '15:00';
+                    showToast(`Presensi pulang belum dibuka! (Buka jam ${jamTeks} WIB)`);
+                    return;
+                }
             }
 
             activeAbsenceType = type;
@@ -1095,7 +1204,6 @@
 
         // FUNGSI UTAMA INTEGRASI WHATSAPP OTOMATIS
         function kirimNotifikasiWhatsApp(tipe, detail) {
-            // Dapatkan nomor WA orang tua dari profil
             const noOrtu = (currentSiswa && currentSiswa.no_ortu) ? currentSiswa.no_ortu.replace(/[^0-9]/g, '') : '';
             if (!noOrtu) {
                 console.log("Nomor WhatsApp Orang Tua tidak dikonfigurasi.");
@@ -1105,7 +1213,6 @@
             let pesan = "";
             const tanggalSekarang = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             
-            // Format Template Pesan Sesuai Kejadian / Tipe Aktivitas
             switch (tipe) {
                 case 'presensi_masuk':
                     pesan = `*NOTIFIKASI PRESENSI MASUK - SMAN 1 PARUNG*\n\nYth. Orang Tua/Wali,\nDiberitahukan bahwa putra/putri Anda:\n\n Nama: *${currentSiswa.nama}*\n NISN: ${currentSiswa.nisn}\n Kelas: ${currentSiswa.kelas}\n\nTelah melakukan *PRESENSI MASUK* pada:\n Hari/Tgl: ${tanggalSekarang}\n Jam: *${detail.jam} WIB*\n Status: Hadir (Radius Terverifikasi)\n Lokasi: SMAN 1 Parung\n\nTerima kasih atas kerja samanya.\n_SiGesit SMAN 1 Parung_`;
@@ -1133,10 +1240,7 @@
                     break;
             }
 
-            // Encode string pesan ke format URI agar aman di URL
             const urlWhatsApp = `https://api.whatsapp.com/send?phone=${noOrtu}&text=${encodeURIComponent(pesan)}`;
-            
-            // Buka WhatsApp Web / Aplikasi WhatsApp di tab baru secara otomatis
             setTimeout(() => {
                 window.open(urlWhatsApp, '_blank');
             }, 1000);
@@ -1169,7 +1273,6 @@
                 .then(data => {
                     if (data.success) {
                         savePresensiToState(presensiRecord);
-                        // Kirim pesan otomatis WhatsApp realtime
                         kirimNotifikasiWhatsApp(type === 'masuk' ? 'presensi_masuk' : 'presensi_pulang', { jam: jamRealtime });
                     } else {
                         showToast("Gagal menyimpan presensi ke Sheets.");
@@ -1199,6 +1302,7 @@
             };
         }
 
+        // FUNGSI MEMPERBARUI TAMPILAN PRESENSI PADA BERANDA
         function updateHomePresensiUI() {
             const hariIni = new Date().toISOString().slice(0, 10);
             const status = checkHariIniAbsenStatus(hariIni);
@@ -1206,27 +1310,33 @@
             const btnMasuk = document.getElementById('btn-presensi-masuk');
             const iconMasuk = document.getElementById('icon-masuk');
             const textMasuk = document.getElementById('time-presensi-masuk');
-            if (status.masuk) {
-                btnMasuk.className = "w-16 h-16 bg-slate-100 border-2 border-emerald-500 text-emerald-600 rounded-full flex items-center justify-center my-2";
-                iconMasuk.className = "fa-solid fa-circle-check text-2xl";
-                textMasuk.innerText = `Done - ${status.masuk.jam} WIB`;
-            } else {
-                btnMasuk.className = "w-16 h-16 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30 transition my-2";
-                iconMasuk.className = "fa-solid fa-bell text-2xl";
-                textMasuk.innerText = "Belum Presensi";
+            
+            if (btnMasuk && iconMasuk && textMasuk) {
+                if (status.masuk) {
+                    btnMasuk.className = "w-16 h-16 bg-slate-100 border-2 border-emerald-500 text-emerald-600 rounded-full flex items-center justify-center my-2";
+                    iconMasuk.className = "fa-solid fa-circle-check text-2xl";
+                    textMasuk.innerText = `Done - ${status.masuk.jam} WIB`;
+                } else {
+                    btnMasuk.className = "w-16 h-16 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30 transition my-2";
+                    iconMasuk.className = "fa-solid fa-bell text-2xl";
+                    textMasuk.innerText = "Belum Presensi";
+                }
             }
 
             const btnPulang = document.getElementById('btn-presensi-pulang');
             const iconPulang = document.getElementById('icon-pulang');
             const textPulang = document.getElementById('time-presensi-pulang');
-            if (status.pulang) {
-                btnPulang.className = "w-16 h-16 bg-slate-100 border-2 border-orange-500 text-orange-600 rounded-full flex items-center justify-center my-2";
-                iconPulang.className = "fa-solid fa-circle-check text-2xl";
-                textPulang.innerText = `Done - ${status.pulang.jam} WIB`;
-            } else {
-                btnPulang.className = "w-16 h-16 bg-orange-500 hover:bg-orange-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-orange-500/30 transition my-2";
-                iconPulang.className = "fa-solid fa-bell text-2xl";
-                textPulang.innerText = "Belum Presensi";
+            
+            if (btnPulang && iconPulang && textPulang) {
+                if (status.pulang) {
+                    btnPulang.className = "w-16 h-16 bg-slate-100 border-2 border-orange-500 text-orange-600 rounded-full flex items-center justify-center my-2";
+                    iconPulang.className = "fa-solid fa-circle-check text-2xl";
+                    textPulang.innerText = `Done - ${status.pulang.jam} WIB`;
+                } else {
+                    btnPulang.className = "w-16 h-16 bg-orange-500 hover:bg-orange-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-orange-500/30 transition my-2";
+                    iconPulang.className = "fa-solid fa-bell text-2xl";
+                    textPulang.innerText = "Belum Presensi";
+                }
             }
         }
 
@@ -1363,7 +1473,6 @@
                         localDb.izin.push(payload);
                         showToast("Pengajuan izin berhasil dikirim ke wali kelas.");
                         switchIzinTab('riwayat');
-                        // Kirim WhatsApp orang tua
                         kirimNotifikasiWhatsApp(tipeWa, payload);
                     }
                 })
@@ -1450,13 +1559,14 @@
             }).join('');
         }
 
-        // REKAPITULASI ABSENSI & BULANAN LOGS (Updated: added Day/Tanggal filter)
+        // REKAPITULASI ABSENSI (Grouping IN & OUT Sebaris per Tanggal)
         function renderRekapPresensi() {
             const thn = document.getElementById('rekap-tahun').value;
             const bln = document.getElementById('rekap-bulan').value;
             const tgl = document.getElementById('rekap-tanggal').value;
             const userAbsens = localDb.presensi.filter(p => p.nis === currentSiswa.nis);
 
+            // Filter awal berdasarkan kriteria tahun, bulan dan tanggal pilihan
             const filtered = userAbsens.filter(p => {
                 const dateObj = new Date(p.tanggal);
                 if (isNaN(dateObj)) return false;
@@ -1470,19 +1580,17 @@
             let kaliTerlambat = 0;
             let countAlpha = 0; 
 
-            // Filter Izin berdasarkan Jenis yang disetujui
             let countIzinTerlambat = localDb.izin.filter(i => i.nis === currentSiswa.nis && i.jenis === 'Izin Terlambat Masuk' && i.status === 'Disetujui').length;
             let countPulangCepat = localDb.izin.filter(i => i.nis === currentSiswa.nis && i.jenis === 'Izin Pulang Cepat' && i.status === 'Disetujui').length;
-            
-            // Perhitungan Izin Sakit ("Sakit") & Izin Tidak Masuk ("Izin")
             let countIzinSakit = localDb.izin.filter(i => i.nis === currentSiswa.nis && i.jenis === 'Sakit' && i.status === 'Disetujui').length;
             let countIzinTidakMasuk = localDb.izin.filter(i => i.nis === currentSiswa.nis && i.jenis === 'Izin' && i.status === 'Disetujui').length;
 
+            // Hitung menit keterlambatan KBM berdasarkan waktu masuk (Batas toleransi masuk 06.15)
             filtered.forEach(p => {
                 if (p.tipe === 'masuk') {
                     const [h, m] = p.jam.split(':').map(Number);
                     const absenMinutes = h * 60 + m;
-                    const limitMinutes = 6 * 60 + 15; // Batas masuk jam 06.15
+                    const limitMinutes = 6 * 60 + 15; 
 
                     if (absenMinutes > limitMinutes) {
                         const selisih = absenMinutes - limitMinutes;
@@ -1492,32 +1600,58 @@
                 }
             });
 
-            // Update UI Rekap Ringkasan
+            // Update UI Rekap Ringkasan Atas
             document.getElementById('rekap-telat-menit').innerHTML = `${totalTerlambatMenit} <span class="text-xs font-medium text-slate-500">menit</span>`;
             document.getElementById('rekap-telat-count').innerText = `Terjadi ${kaliTerlambat} kali telat`;
             document.getElementById('rekap-alpha-count').innerHTML = `${countAlpha} <span class="text-xs font-medium text-slate-500">kali</span>`;
             document.getElementById('rekap-izin-telat').innerText = `${countIzinTerlambat} kali`;
             document.getElementById('rekap-pulang-cepat').innerText = `${countPulangCepat} kali`;
-            
-            // Set nilai baru untuk Izin Sakit dan Izin Tidak Masuk ke elemen UI
             document.getElementById('rekap-izin-sakit').innerHTML = `${countIzinSakit} <span class="text-xs font-medium text-slate-500">kali</span>`;
             document.getElementById('rekap-izin-tidak-masuk').innerHTML = `${countIzinTidakMasuk} <span class="text-xs font-medium text-slate-500">kali</span>`;
 
+            // RENDER DETAIL LOG PRESENSI SEBARIS (IN & OUT) PER TANGGAL
             const logContainer = document.getElementById('log-presensi-list');
-            if (filtered.length === 0) {
-                logContainer.innerHTML = '<div class="p-4 text-center text-xs text-slate-400">Tidak ada riwayat presensi bulan ini.</div>';
+            if (!logContainer) return;
+
+            // Pengelompokkan data berdasarkan tanggal unik
+            const groupedLog = {};
+            filtered.forEach(p => {
+                if (!groupedLog[p.tanggal]) {
+                    groupedLog[p.tanggal] = { masuk: '--:--', pulang: '--:--' };
+                }
+                if (p.tipe === 'masuk') {
+                    groupedLog[p.tanggal].masuk = p.jam;
+                } else if (p.tipe === 'pulang') {
+                    groupedLog[p.tanggal].pulang = p.jam;
+                }
+            });
+
+            // Urutkan tanggal dari yang terbaru
+            const sortedDates = Object.keys(groupedLog).sort((a, b) => new Date(b) - new Date(a));
+
+            if (sortedDates.length === 0) {
+                logContainer.innerHTML = '<div class="p-4 text-center text-xs text-slate-400">Tidak ada riwayat presensi periode ini.</div>';
                 return;
             }
 
-            logContainer.innerHTML = filtered.map(p => {
+            logContainer.innerHTML = sortedDates.map(tanggal => {
+                const row = groupedLog[tanggal];
+                // Formatter tanggal lokal yang lebih ramah dibaca
+                const dateObj = new Date(tanggal);
+                const formatTglLokal = !isNaN(dateObj) ? dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : tanggal;
+
                 return `
-                    <div class="px-4 py-3 flex justify-between items-center text-xs border-b border-slate-100 last:border-0">
-                        <div>
-                            <span class="font-bold text-slate-700 capitalize">Absen ${p.tipe}</span>
-                            <p class="text-[10px] text-slate-400 mt-0.5"><i class="fa-regular fa-clock"></i> ${p.tanggal}</p>
+                    <div class="px-4 py-3.5 flex justify-between items-center text-xs border-b border-slate-100 last:border-0 bg-white">
+                        <div class="flex flex-col">
+                            <span class="font-bold text-slate-700">${formatTglLokal}</span>
                         </div>
-                        <div class="text-right">
-                            <span class="font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">${p.jam} WIB</span>
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-1 font-semibold rounded text-[10.5px] ${row.masuk !== '--:--' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-100 text-slate-450'}">
+                                <i class="fa-solid fa-right-to-bracket mr-1"></i> IN: ${row.masuk}
+                            </span>
+                            <span class="px-2 py-1 font-semibold rounded text-[10.5px] ${row.pulang !== '--:--' ? 'bg-orange-50 text-orange-700 border border-orange-100' : 'bg-slate-100 text-slate-450'}">
+                                <i class="fa-solid fa-right-from-bracket mr-1"></i> OUT: ${row.pulang}
+                            </span>
                         </div>
                     </div>
                 `;
@@ -1582,13 +1716,16 @@
             }).join('');
         }
 
-        // LAPORAN POIN PRESTASI / PELANGGARAN
+        // LAPORAN POIN PRESTASI / PELANGGARAN & RENDER RIWAYAT DETAIL DI MENU POIN
         function renderPoinKarakter() {
             let saldoAwal = 100;
             let poinPelanggaran = 0;
             let poinPrestasi = 0;
 
-            const userLogs = localDb.poin; 
+            let userLogs = localDb.poin; 
+            if (currentSiswa) {
+                userLogs = userLogs.filter(p => p.nis === currentSiswa.nis);
+            }
 
             userLogs.forEach(p => {
                 const poinVal = parseInt(p.poin) || 0;
@@ -1601,11 +1738,15 @@
 
             const saldoAkhir = (saldoAwal - poinPelanggaran) + poinPrestasi;
 
+            // Memperbarui rangkuman total saldo poin di kartu utama
             document.getElementById('poin-saldo-akhir').innerText = saldoAkhir;
             document.getElementById('poin-minus').innerText = `-${poinPelanggaran}`;
             document.getElementById('poin-plus').innerText = `+${poinPrestasi}`;
 
+            // Memperbarui kontainer daftar riwayat catatan poin di halaman menu Poin
             const listContainer = document.getElementById('poin-logs-container');
+            if (!listContainer) return;
+
             if (userLogs.length === 0) {
                 listContainer.innerHTML = `
                     <div class="p-6 text-center text-xs text-slate-400">
@@ -1618,13 +1759,13 @@
             listContainer.innerHTML = userLogs.map(p => {
                 const isMinus = p.tipe === 'Pelanggaran';
                 return `
-                    <div class="p-4 flex justify-between items-start text-xs">
-                        <div class="space-y-1">
+                    <div class="p-4 flex justify-between items-start text-xs border-b border-slate-100 last:border-0 bg-white">
+                        <div class="space-y-1.5 pr-4">
                             <span class="text-[9px] font-bold px-2 py-0.5 rounded-full ${isMinus ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}">${p.tipe}</span>
-                            <h6 class="font-bold text-slate-800">${p.deskripsi}</h6>
+                            <h6 class="font-bold text-slate-800 leading-snug">${p.deskripsi}</h6>
                             <p class="text-[9px] text-slate-400"><i class="fa-regular fa-calendar"></i> Tanggal: ${p.tanggal}</p>
                         </div>
-                        <span class="font-black text-sm ${isMinus ? 'text-rose-500' : 'text-emerald-500'}">
+                        <span class="font-black text-sm shrink-0 ${isMinus ? 'text-rose-500' : 'text-emerald-500'}">
                             ${isMinus ? '-' : '+'}${p.poin}
                         </span>
                     </div>
