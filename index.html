@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=300;400;500;600;700;800&display=swap');
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
         }
@@ -61,12 +61,6 @@
 
                 <!-- Login Form -->
                 <div class="w-full space-y-4">
-                    <!-- Petunjuk Uji Coba Offline Kondisional -->
-                    <div id="mock-info-banner" class="hidden bg-amber-50 rounded-xl p-3 border border-amber-200 text-[11px] text-amber-800 leading-relaxed">
-                        <i class="fa-solid fa-circle-info mr-1 text-amber-600"></i> <b>Mode Simulasi Aktif (URL Belum Diganti):</b><br>
-                        Gunakan NIS: <span class="font-mono font-bold bg-amber-100 px-1 py-0.5 rounded">12345</span> dan Password: <span class="font-mono font-bold bg-amber-100 px-1 py-0.5 rounded">0011223344</span> untuk mencoba aplikasi.
-                    </div>
-
                     <div>
                         <label class="block text-xs font-bold text-slate-600 mb-1">Nomor Induk Siswa (NIS)</label>
                         <div class="relative">
@@ -1090,17 +1084,28 @@
         function switchView(target) {
             const views = ['home', 'izin', 'riwayat', 'laporan', 'profil'];
             views.forEach(v => {
-                document.getElementById(`view-${v}`).classList.add('hidden');
-                document.getElementById(`nav-${v}`).className = "flex flex-col items-center gap-1 text-slate-400";
+                const viewEl = document.getElementById(`view-${v}`);
+                if (viewEl) viewEl.classList.add('hidden');
+                
+                const navEl = document.getElementById(`nav-${v}`);
+                if (navEl) navEl.className = "flex flex-col items-center gap-1 text-slate-400";
             });
 
-            document.getElementById(`view-${target}`).classList.remove('hidden');
-            document.getElementById(`nav-${target}`).className = "flex flex-col items-center gap-1 text-emerald-600";
+            const targetViewEl = document.getElementById(`view-${target}`);
+            if (targetViewEl) targetViewEl.classList.remove('hidden');
+            
+            const targetNavEl = document.getElementById(`nav-${target}`);
+            if (targetNavEl) targetNavEl.className = "flex flex-col items-center gap-1 text-emerald-600";
 
             if (target === 'profil') {
                 setTimeout(() => {
                     initLeafletMap();
                 }, 100);
+            } else if (target === 'laporan') {
+                renderPoinKarakter();
+            } else if (target === 'riwayat') {
+                renderRekapPresensi();
+                renderRekapPoin();
             }
         }
 
@@ -1224,7 +1229,7 @@
                     pesan = `*PEMBERITAHUAN PENGAJUAN IZIN SAKIT - SMAN 1 PARUNG*\n\nYth. Orang Tua/Wali,\nPengajuan izin sakit untuk putra/putri Anda:\n\n Nama: *${currentSiswa.nama}*\n Kelas: ${currentSiswa.kelas}\n\nTelah *Berhasil Diajukan* pada:\n Tanggal: ${detail.tanggal}\n Alasan: ${detail.keterangan}\n Status: Menunggu Persetujuan Wali Kelas\n\nSemoga lekas sembuh.\n_SiGesit SMAN 1 Parung_`;
                     break;
                 case 'izin_tidak_masuk':
-                    pesan = `*PEMBERITAHUAN PENGAJUAN IZIN TIDAK MASUK - SMAN 1 PARUNG*\n\nYth. Orang Tua/Wali,\nPengajuan izin tidak masuk (keperluan lain) untuk putra/putri Anda:\n\n Nama: *${currentSiswa.nama}*\n Kelas: ${currentSiswa.kelas}\n\nTelah *Berhasil Diajukan* pada:\n Tanggal: ${detail.tanggal}\n Keperluan: ${detail.keterangan}\n Status: Menunggu Persetujuan Wali Kelas\n\n_SiGesit SMAN 1 Parung_`;
+                    pesan = `*PEMBERITBAHUAN PENGAJUAN IZIN TIDAK MASUK - SMAN 1 PARUNG*\n\nYth. Orang Tua/Wali,\nPengajuan izin tidak masuk (keperluan lain) untuk putra/putri Anda:\n\n Nama: *${currentSiswa.nama}*\n Kelas: ${currentSiswa.kelas}\n\nTelah *Berhasil Diajukan* pada:\n Tanggal: ${detail.tanggal}\n Keperluan: ${detail.keterangan}\n Status: Menunggu Persetujuan Wali Kelas\n\n_SiGesit SMAN 1 Parung_`;
                     break;
                 case 'izin_terlambat':
                     pesan = `*PEMBERITAHUAN IZIN TERLAMBAT MASUK - SMAN 1 PARUNG*\n\nYth. Orang Tua/Wali,\nPengajuan dispensasi terlambat masuk sekolah untuk putra/putri Anda:\n\n Nama: *${currentSiswa.nama}*\n Kelas: ${currentSiswa.kelas}\n\nTelah *Berhasil Diajukan* pada:\n Tanggal: ${detail.tanggal}\n Jam Rencana Tiba: ${detail.waktu} WIB\n Alasan: ${detail.keterangan}\n Status: Menunggu Persetujuan Atasan\n\n_SiGesit SMAN 1 Parung_`;
@@ -1273,6 +1278,7 @@
                 .then(data => {
                     if (data.success) {
                         savePresensiToState(presensiRecord);
+                        // Kirim pesan otomatis WhatsApp realtime
                         kirimNotifikasiWhatsApp(type === 'masuk' ? 'presensi_masuk' : 'presensi_pulang', { jam: jamRealtime });
                     } else {
                         showToast("Gagal menyimpan presensi ke Sheets.");
@@ -1750,7 +1756,7 @@
             if (userLogs.length === 0) {
                 listContainer.innerHTML = `
                     <div class="p-6 text-center text-xs text-slate-400">
-                        <i class="fa-solid fa-circle-check text-emerald-500 text-2xl mb-2 block"></i> Siswa bersih dari catatan pelanggaran.
+                        <i class="fa-solid fa-circle-check text-emerald-500 text-2xl mb-2 block"></i> Siswa bersih dari catatan pelanggaran dan prestasi.
                     </div>
                 `;
                 return;
